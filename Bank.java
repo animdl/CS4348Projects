@@ -1,19 +1,3 @@
-// safe is a resource
-// manager is a resource
-
-// safe can only be accessed by 2 tellers at a time
-// manager can only give permission to access the safe 1 teller at a time
-
-// teller can serve 1 customer at a time
-
-// customers wait in a line
-// when a customer leaves the bank, another customer can enter the bank
-
-// two transaction types: deposit and withdrawal
-// if deposit, teller goes directly to the safe
-// if withdrawal, teller requests permission from manager and goes to the safe
-
-// ---
 import java.util.concurrent.Semaphore;
 import java.util.Random;
 import java.util.Queue;
@@ -34,13 +18,19 @@ public class Bank {
     // enforces mutex on tellers_line
     public static Semaphore tellers_mutex = new Semaphore(1, true);
 
+    // keeps count of customers
+    public static int customers_count = 0;
+    // enforces mutex on customers_count
+    public static Semaphore customers_mutex = new Semaphore(1, true);
+
     // tells if manager is free
+    // 1 permit = 1 manager permit given
     public static Semaphore manager = new Semaphore(1, true);
 
     // tells if safe is free
+    // 2 permits = 2 safe permits given
     public static Semaphore safe = new Semaphore(2, true);
 
-    // TELLER CLASS GOES HERE
     public static class Teller extends Thread {
         int tellerId; // stores teller number
 
@@ -58,7 +48,7 @@ public class Bank {
                 System.out.println("Teller " + tellerId + " is ready to serve.");
 
                 // --------
-                // wait for teller mutex
+                // wait for tellers queue mutex
                 try {
                     tellers_mutex.acquire();
                 } catch (Exception e) {
@@ -68,12 +58,36 @@ public class Bank {
                 tellers_line.add(this);
                 System.out.println("Teller " + tellerId + " is waiting for a customer.");
 
-                // signal teller mutex
+                // signal tellers queue mutex
                 tellers_mutex.release();
                 // --------
 
                 // signal teller ready
                 teller_ready.release();
+
+                // --------
+                // wait for customers count mutex
+                try {
+                    customers_mutex.acquire();
+                } catch (Exception e) {
+                }
+
+                // exit condition
+                // check if all customers served
+                if (customers_count >= (MAX_CUSTOMERS - 2)) {
+                    
+                    try {
+                        Thread.sleep(1000);
+                    } catch (Exception e) {
+                    }
+
+                    customers_mutex.release();
+                    break;
+                }
+
+                // signal customers count mutex
+                customers_mutex.release();
+                // --------
 
                 // wait for teller turn
                 try {
@@ -152,7 +166,24 @@ public class Bank {
                 // signal customer turn
                 customer.customer_turn.release();
 
+                // --------
+                // wait for customer count mutex
+                try {
+                    customers_mutex.acquire();
+                } catch (Exception e) {
+                }
+
+                // update customer count
+                customers_count += 1;
+
+                // signal customer count mutex
+                customers_mutex.release();
+                // --------
+
+                // DEBUG LINE
+                //System.out.println("DEBUG: Teller " + tellerId + " Cutomer Count: " + customers_count);
             }
+            System.out.println("Teller " + tellerId + " is leaving for the day.");
         }
     }
     
@@ -177,13 +208,14 @@ public class Bank {
 
             // wait for a teller to be ready
             // teller_ready gives access to threads in the order of request
+            // adds customer to line in FIFO queue
             try {
                 teller_ready.acquire();
             } catch (Exception e) {
             }
 
             // --------
-            // wait for teller mutex
+            // wait for tellers queue mutex
             try {
                 tellers_mutex.acquire();
             } catch (Exception e) {
@@ -193,7 +225,8 @@ public class Bank {
 
             // remove teller from available queue
             Teller teller = tellers_line.remove();
-            // signal teller mutex
+
+            // signal tellers queue mutex
             tellers_mutex.release();
             // --------
 
@@ -223,7 +256,6 @@ public class Bank {
             }
 
             System.out.println("Customer " + customerId + " thanks the Teller " + teller.tellerId + " and leaves the bank.");
-
         }
     } 
 
