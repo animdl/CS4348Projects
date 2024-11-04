@@ -179,9 +179,6 @@ public class Bank {
                 // signal customer count mutex
                 customers_mutex.release();
                 // --------
-
-                // DEBUG LINE
-                //System.out.println("DEBUG: Teller " + tellerId + " Cutomer Count: " + customers_count);
             }
             System.out.println("Teller " + tellerId + " is leaving for the day.");
         }
@@ -275,6 +272,10 @@ public class Bank {
         for (int i=0; i<MAX_CUSTOMERS; i++) {
             Thread temp = new Customer(i);
             temp.start();
+            try {
+                Thread.sleep(5);
+            } catch (Exception e) {
+            }
             threads.add(temp);
         }
 
